@@ -1,26 +1,26 @@
 let tasks = [];
+let completedTasks = [];
 
 const taskList = document.getElementById('task-list');
+const completedTaskList = document.getElementById('completed-task-list');
+
 const saveBtn = document.getElementById('save-btn');
 const restoreBtn = document.getElementById('restore-btn');
 const addBtn = document.getElementById('add-btn');
 
 function loadFromLocalStorage() {
     const savedTasks = localStorage.getItem('tasks');
-    if (savedTasks) {
-        tasks = JSON.parse(savedTasks);
-    } else {
-        tasks = [
-            { text: 'Learn Electron', completed: true },
-            { text: 'Learn AG Grid', completed: false }
-        ];
-        saveToLocalStorage();
-    }
+    const savedCompletedTasks = localStorage.getItem('completedTasks');
+
+    tasks = savedTasks ? JSON.parse(savedTasks) : [];
+    completedTasks = savedCompletedTasks ? JSON.parse(savedCompletedTasks) : [];
     renderTasks();
+    renderCompletedTasks();
 }
 
 function saveToLocalStorage() {
     localStorage.setItem('tasks', JSON.stringify(tasks));
+    localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
 }
 
 function renderTasks() {
@@ -30,7 +30,13 @@ function renderTasks() {
         
         const taskCell = document.createElement('td');
         taskCell.textContent = task.text;
-        
+
+        const startCell = document.createElement('td');
+        startCell.textContent = task.start;
+
+        const endCell = document.createElement('td');
+        endCell.textContent = task.end;
+
         const completedCell = document.createElement('td');
         const checkboxWrapper = document.createElement('div');
         checkboxWrapper.className = 'checkbox-wrapper';
@@ -40,18 +46,41 @@ function renderTasks() {
         checkbox.addEventListener('change', () => toggleTask(index));
         checkboxWrapper.appendChild(checkbox);
         completedCell.appendChild(checkboxWrapper);
-        
+
         const removeCell = document.createElement('td');
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
         removeBtn.innerHTML = '×';
         removeBtn.addEventListener('click', () => removeTask(index));
         removeCell.appendChild(removeBtn);
-        
+
         row.appendChild(taskCell);
+        row.appendChild(startCell);
+        row.appendChild(endCell);
         row.appendChild(completedCell);
         row.appendChild(removeCell);
         taskList.appendChild(row);
+    });
+}
+
+function renderCompletedTasks() {
+    completedTaskList.innerHTML = '';
+    completedTasks.forEach(task => {
+        const row = document.createElement('tr');
+        
+        const taskCell = document.createElement('td');
+        taskCell.textContent = task.text;
+
+        const startCell = document.createElement('td');
+        startCell.textContent = task.start;
+
+        const endCell = document.createElement('td');
+        endCell.textContent = task.end;
+
+        row.appendChild(taskCell);
+        row.appendChild(startCell);
+        row.appendChild(endCell);
+        completedTaskList.appendChild(row);
     });
 }
 
@@ -64,7 +93,15 @@ function addTask() {
                         <h5 class="modal-title">Add New Task</h5>
                     </div>
                     <div class="modal-body">
-                        <input type="text" id="newTaskInput" class="form-control" placeholder="Enter task">
+                        <input type="text" id="newTaskInput" class="form-control mb-2" placeholder="Enter task">
+                        <label>Start Date</label>
+                        <input type="date" id="startDateInput" class="form-control mb-2">
+                        <label>Start Time</label>
+                        <input type="time" id="startTimeInput" class="form-control mb-2">
+                        <label>End Date</label>
+                        <input type="date" id="endDateInput" class="form-control mb-2">
+                        <label>End Time</label>
+                        <input type="time" id="endTimeInput" class="form-control">
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
@@ -79,41 +116,44 @@ function addTask() {
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
 
-    const modal = document.getElementById('addTaskModal');
     const input = document.getElementById('newTaskInput');
+    const startDateInput = document.getElementById('startDateInput');
+    const startTimeInput = document.getElementById('startTimeInput');
+    const endDateInput = document.getElementById('endDateInput');
+    const endTimeInput = document.getElementById('endTimeInput');
     const cancelBtn = document.getElementById('cancelBtn');
     const confirmBtn = document.getElementById('confirmBtn');
 
-    input.focus();
+    cancelBtn.onclick = () => document.body.removeChild(modalContainer);
 
-    cancelBtn.onclick = function() {
-        document.body.removeChild(modalContainer);
-    };
-
-    confirmBtn.onclick = function() {
+    confirmBtn.onclick = () => {
         const taskText = input.value.trim();
-        if (taskText) {
+        const startDate = startDateInput.value;
+        const startTime = startTimeInput.value;
+        const endDate = endDateInput.value;
+        const endTime = endTimeInput.value;
+
+        if (taskText && startDate && startTime && endDate && endTime) {
             tasks.push({
                 text: taskText,
+                start: `${startDate} ${startTime}`,
+                end: `${endDate} ${endTime}`,
                 completed: false
             });
             saveToLocalStorage();
             renderTasks();
+            document.body.removeChild(modalContainer);
         }
-        document.body.removeChild(modalContainer);
     };
-
-    input.addEventListener('keyup', function(event) {
-        if (event.key === 'Enter') {
-            confirmBtn.click();
-        }
-    });
 }
 
 function toggleTask(index) {
-    tasks[index].completed = !tasks[index].completed;
+    tasks[index].completed = true;
+    const completedTask = tasks.splice(index, 1)[0];
+    completedTasks.push(completedTask);
     saveToLocalStorage();
     renderTasks();
+    renderCompletedTasks();
 }
 
 function removeTask(index) {
@@ -123,58 +163,29 @@ function removeTask(index) {
 }
 
 function saveTasks() {
-    let textContent = 'TO-DO LIST\n\n';
-    tasks.forEach((task, index) => {
-        textContent += `${index + 1}. [${task.completed ? 'X' : ' '}] ${task.text}\n`;
-    });
-
+    const textContent = 'TO-DO LIST\n\n' +
+        tasks.map((task, index) => `${index + 1}. ${task.text}`).join('\n');
     const blob = new Blob([textContent], { type: 'text/plain' });
-    
     const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = window.URL.createObjectURL(blob);
+    a.href = URL.createObjectURL(blob);
     a.download = 'todo-list.txt';
-    
-    document.body.appendChild(a);
     a.click();
-    window.URL.revokeObjectURL(a.href);
-    document.body.removeChild(a);
 }
 
 function restoreTasks() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.txt';
-    
     input.onchange = e => {
-        const file = e.target.files[0];
         const reader = new FileReader();
-        
-        reader.onload = function(event) {
-            const contents = event.target.result;
-            const lines = contents.split('\n').slice(2); 
-            
-            tasks = lines
-                .filter(line => line.trim()) 
-                .map(line => {
-                    const matched = line.match(/^\d+\. \[(X| )\] (.+)$/);
-                    if (matched) {
-                        return {
-                            completed: matched[1] === 'X',
-                            text: matched[2]
-                        };
-                    }
-                    return null;
-                })
-                .filter(task => task !== null);
-            
+        reader.onload = event => {
+            const lines = event.target.result.split('\n');
+            tasks = lines.map(line => ({ text: line, completed: false }));
             saveToLocalStorage();
             renderTasks();
         };
-        
-        reader.readAsText(file);
+        reader.readAsText(e.target.files[0]);
     };
-    
     input.click();
 }
 
